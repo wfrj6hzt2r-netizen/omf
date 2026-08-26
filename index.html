@@ -1,0 +1,2452 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rééducation OMF</title>
+<style>
+  /* Aucune ressource externe : la page doit s'afficher à l'identique sans réseau,
+     dans une salle d'attente comme sur un téléphone en mode avion. Les polices sont
+     celles déjà présentes sur l'appareil.
+       — display : Georgia, présente sur iOS, Android, macOS et Windows
+       — corps   : la police système (San Francisco sur iPhone, Roboto sur Android)
+       — enfant  : Trebuchet MS, plus ronde et plus chaleureuse que la système */
+  :root {
+    --font-display: Georgia, 'Times New Roman', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-kid: 'Trebuchet MS', 'Avenir Next', Verdana, sans-serif;
+
+    --ivory: #F7F4EE;
+    --clay: #C8A882;
+    --deep: #2B2420;
+    --muted: #8A7A6E;
+    --soft: #EDE9E0;
+    --accent: #6B8F71;
+    --accent-light: #EBF2EC;
+    --warn: #C4724A;
+    --sky: #5B9BD5;
+    --kid-bg: #FFF8F0;
+    --kid-purple: #A78BFA;
+    --kid-green: #34D399;
+    --kid-orange: #FB923C;
+    --kid-blue: #38BDF8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--ivory);
+    color: var(--deep);
+    min-height: 100vh;
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Amélioration progressive.
+
+     Le contenu des exercices est écrit en dur dans le HTML : la page se lit
+     partout, y compris là où les scripts ne s'exécutent pas — aperçu de fichier
+     sur iPhone, pièce jointe, bac à sable, politique de sécurité stricte.
+
+     Les commandes qui n'ont de sens qu'avec un script (chronos, compteurs,
+     filtres, cases à cocher) sont masquées tant que `html.js` n'est pas posé,
+     pour ne jamais afficher un bouton mort. Le script pose cette classe dès le
+     début du document, avant le premier affichage.
+     ───────────────────────────────────────────────────────────────────────── */
+  html:not(.js) .interactive-only { display: none !important; }
+
+  /* Sans script, toutes les fiches sont dépliées : c'est un document à lire.
+     Avec script, elles se replient et s'ouvrent au toucher. */
+  .js .card-body { display: none; }
+  .js .card-body.open { display: flex; }
+  .js .card-header { cursor: pointer; }
+
+  /* ── Version enfant ── */
+  body.kid { background: var(--kid-bg); font-family: var(--font-kid); }
+  body.kid header { background: var(--kid-bg); border-bottom-color: #FFD9B0; }
+  body.kid .logo-mark { font-family: var(--font-kid); font-weight: 700; }
+  body.kid .logo-mark em { color: var(--kid-orange); font-style: normal; }
+  body.kid .subtitle { display: none; }
+  body.kid .filter-btn { border-radius: 12px; font-family: var(--font-kid); font-weight: 700; }
+  body.kid .filter-btn.active { background: var(--kid-orange); border-color: var(--kid-orange); }
+  body.kid .exercise-card { border-radius: 20px; border-width: 2px; }
+  body.kid .ex-name { font-family: var(--font-kid); font-weight: 700; font-size: 17px; }
+  body.kid .progress-fill { background: var(--kid-orange); }
+  body.kid .progress-text { color: var(--kid-orange); }
+  body.kid .btn-start { background: var(--kid-green); border-radius: 12px; font-family: var(--font-kid); font-weight: 700; }
+  body.kid .done-check.checked { background: var(--kid-green); border-color: var(--kid-green); }
+  body.kid .steps-list li { font-size: 15px; }
+  body.kid .steps-list li::before { background: #FFE4CC; color: var(--kid-orange); }
+  body.kid .tag.accent { background: #FFF0E0; color: var(--kid-orange); }
+  body.kid .note-box { border-left-color: var(--kid-orange); background: #FFF8F0; }
+  body.kid .note-box strong { color: var(--kid-orange); }
+  body.kid .timer-display { color: var(--kid-purple); }
+  body.kid .timer-zone { background: #FFF0E0; border-radius: 16px; }
+  body.kid .reps-counter { background: #FFF0E0; border-radius: 14px; }
+  body.kid .rep-btn { border-radius: 10px; font-family: var(--font-kid); font-weight: 700; }
+  body.kid .rep-val { color: var(--kid-orange); }
+  body.kid .btn-reset-session { font-family: var(--font-kid); font-weight: 700; border-radius: 12px; }
+  body.kid .mode-toggle { font-family: var(--font-kid); font-weight: 700; background: #FFE4CC; color: #7C4A00; }
+  body.kid .footer-note { background: #FFF0E0; }
+
+  /* Contenus propres à une version. Les deux sont dans le document ; seule
+     l'une des deux s'affiche. Les sélecteurs portent sur le conteneur, jamais
+     sur les `li` : `.steps-list li` serait plus spécifique et l'emporterait. */
+  .kid-steps, .kid-visual, .kid-note, .tag.kid-tag, .kid-fun { display: none; }
+  body.kid .kid-steps { display: block; }
+  body.kid .kid-visual { display: block; }
+  body.kid .kid-note { display: block; }
+  body.kid .tag.kid-tag { display: inline-flex; }
+  body.kid .adult-steps, body.kid .adult-note { display: none; }
+  body.kid .kid-fun { display: flex; }
+
+  .kid-fun {
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #FFF0E0, #E8F5FF);
+    border: 2px dashed #FFB87A;
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    font-family: var(--font-kid);
+    font-weight: 700;
+    font-size: 14px;
+    color: #7C4A00;
+  }
+
+  .kid-fun .stars { font-size: 20px; letter-spacing: 2px; }
+
+  /* ── En-tête ── */
+  header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #DDD8CE;
+    background: var(--ivory);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-inner {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .header-left { display: flex; align-items: baseline; gap: 14px; }
+
+  .logo-mark {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: normal;
+    color: var(--deep);
+    letter-spacing: -0.5px;
+  }
+
+  .logo-mark em { font-style: italic; color: var(--clay); }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--soft);
+    border-radius: 100px;
+    padding: 10px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    border: none;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+
+  .mode-toggle:hover { background: #DDD8CE; }
+  .mode-toggle .toggle-icon { font-size: 16px; }
+
+  main {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+  }
+
+  .intro-bar { margin: 24px 0 20px; }
+  .intro-bar p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  /* Message affiché quand les scripts ne tournent pas. Le contenu reste lisible :
+     il ne s'agit plus d'excuser une page vide, mais d'annoncer ce qui manque. */
+  .no-js-note {
+    margin: 24px 0;
+    padding: 16px 18px;
+    background: #FEF3E8;
+    border: 1.5px solid var(--clay);
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--deep);
+  }
+
+  .js .no-js-note { display: none; }
+  .no-js-note strong { color: var(--warn); }
+
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .filter-btn {
+    border: 1.5px solid #DDD8CE;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    padding: 10px 13px;
+    min-height: 40px;
+    border-radius: 100px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .filter-btn:hover { border-color: var(--clay); color: var(--deep); }
+  .filter-btn.active { background: var(--deep); border-color: var(--deep); color: var(--ivory); }
+
+  .session-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 12px;
+  }
+
+  .session-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .session-right { display: flex; align-items: center; gap: 10px; }
+
+  .progress-text {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .btn-reset-session {
+    border: 1.5px solid #DDD8CE;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 11px;
+    padding: 10px 14px;
+    min-height: 40px;
+    border-radius: 100px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-reset-session:hover { border-color: var(--clay); color: var(--deep); }
+
+  .progress-bar {
+    height: 4px;
+    background: #DDD8CE;
+    border-radius: 2px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  /* ── Fiches d'exercice ── */
+  .exercise-card {
+    background: white;
+    border: 1px solid #E8E3D9;
+    border-radius: 16px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+
+  .exercise-card.hidden { display: none; }
+  .exercise-card.done { opacity: 0.55; border-color: #DDD8CE; }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    padding: 18px 18px 14px;
+    gap: 12px;
+    user-select: none;
+  }
+
+  .zone-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .card-meta { flex: 1; min-width: 0; }
+
+  .ex-name {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: normal;
+    line-height: 1.25;
+    margin-bottom: 5px;
+  }
+
+  .ex-tags { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+
+  .tag {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--soft);
+    color: var(--muted);
+  }
+
+  .tag.accent { background: var(--accent-light); color: var(--accent); }
+  .tag.kid-tag { background: #FFF0E0; color: var(--kid-orange); }
+
+  .card-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .duration-badge { font-size: 12px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+
+  /* Cibles tactiles : la pastille et les boutons de comptage gardent leur taille
+     visuelle, leur zone cliquable est portée à 44 px par un ::before invisible.
+     Grossir le dessin lui-même déséquilibrerait la fiche. */
+  .done-check {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid #DDD8CE;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .done-check::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  .done-check.checked { background: var(--accent); border-color: var(--accent); }
+
+  .done-check.checked::after {
+    content: '';
+    width: 8px;
+    height: 5px;
+    border-left: 2px solid white;
+    border-bottom: 2px solid white;
+    transform: rotate(-45deg) translateY(-1px);
+  }
+
+  /* Le corps de fiche est une colonne flex : `order` place l'avertissement enfant
+     avant les étapes et la note clinique après, sans dupliquer le balisage. */
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0 18px 18px;
+    border-top: 1px solid #F0EBE0;
+  }
+
+  .kid-visual { order: 1; }
+  .kid-note { order: 2; }
+  .steps-list { order: 3; }
+  .breath-visual { order: 4; }
+  .timer-zone { order: 5; }
+  .reps-row { order: 6; }
+  .adult-note { order: 7; }
+
+  .kid-visual {
+    margin-top: 14px;
+    padding: 14px;
+    background: linear-gradient(135deg, #FFF8F0, #F0F8FF);
+    border-radius: 14px;
+    text-align: center;
+    font-size: 48px;
+    line-height: 1;
+  }
+
+  .kid-visual-caption {
+    font-family: var(--font-kid);
+    font-size: 13px;
+    font-weight: 700;
+    color: #7C4A00;
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+
+  /* Les numéros d'étape viennent d'un compteur CSS : la numérotation suit
+     l'ordre réel des étapes, sans numéro écrit à la main dans le balisage. */
+  .steps-list {
+    list-style: none;
+    counter-reset: etape;
+    margin-top: 14px;
+  }
+
+  .steps-list li {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--deep);
+  }
+
+  .steps-list li:last-child { margin-bottom: 0; }
+
+  .steps-list li::before {
+    counter-increment: etape;
+    content: counter(etape);
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .timer-zone {
+    background: var(--soft);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /* Chiffres en police système, pas en Georgia : ses chiffres elzéviriens font
+     lire le « 0 » comme un « o » et n'ont pas tous la même largeur, ce qui fait
+     sauter le décompte. Le serif reste sur les titres. */
+  .timer-display {
+    font-family: var(--font-body);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 34px;
+    letter-spacing: -1px;
+    color: var(--deep);
+    line-height: 1;
+  }
+
+  .timer-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  .timer-controls { display: flex; gap: 8px; }
+
+  .btn-timer {
+    border: none;
+    cursor: pointer;
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 13px;
+    padding: 13px 18px;
+    min-height: 44px;
+    white-space: nowrap;   /* sinon le libellé le plus long fait grandir la zone */
+    transition: background 0.15s;
+  }
+
+  .btn-start { background: var(--deep); color: var(--ivory); }
+  .btn-reset { background: transparent; color: var(--muted); border: 1.5px solid #DDD8CE; padding: 13px; min-width: 44px; }
+  .btn-reset:hover { border-color: var(--muted); }
+
+  .reps-row { display: flex; align-items: center; gap: 14px; }
+  .reps-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+  .reps-counter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--soft);
+    border-radius: 10px;
+    padding: 5px 10px;
+  }
+
+  .rep-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    color: var(--deep);
+    transition: background 0.15s;
+  }
+
+  .rep-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  .rep-btn:hover { background: var(--clay); color: white; }
+
+  .rep-val {
+    font-family: var(--font-body);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 20px;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  .rep-goal { font-size: 12px; color: var(--muted); }
+
+  .note-box {
+    padding: 11px 13px;
+    background: #FEF9F0;
+    border-left: 3px solid var(--clay);
+    border-radius: 0 8px 8px 0;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .note-box strong { color: var(--warn); font-weight: 600; }
+
+  .breath-visual {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 0;
+  }
+
+  .breath-visual.show { display: flex; }
+
+  .breath-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #BDE0FF, #5B9BD5);
+    margin-bottom: 10px;
+  }
+
+  body.kid .breath-circle { background: radial-gradient(circle, #B9F6CA, var(--kid-green)); }
+
+  .breath-label { font-size: 13px; font-weight: 600; color: var(--sky); letter-spacing: 0.05em; }
+  body.kid .breath-label { color: var(--kid-green); font-family: var(--font-kid); font-weight: 700; font-size: 15px; }
+
+  .congrats {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px;
+    text-align: center;
+    animation: popIn 0.4s ease;
+  }
+
+  .congrats.show { display: flex; }
+
+  @keyframes popIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .congrats .trophy { font-size: 56px; margin-bottom: 10px; }
+  .congrats h2 { font-family: var(--font-kid); font-weight: 700; font-size: 22px; color: var(--kid-orange); }
+  .congrats p { font-size: 14px; color: var(--muted); margin-top: 6px; font-family: var(--font-kid); }
+
+  .footer-note {
+    margin-top: 36px;
+    padding: 18px;
+    background: var(--soft);
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .footer-note strong { color: var(--warn); }
+
+  :focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  /* Sur téléphone, le sous-titre écrasait le logo et la bascule de version sur
+     plusieurs lignes. Il est décoratif : il cède la place. */
+  @media (max-width: 560px) {
+    .subtitle { display: none; }
+    header { padding: 14px 18px; }
+  }
+</style>
+</head>
+<body>
+<script>
+  // Posé avant le premier affichage : sans cette classe, les commandes qui
+  // dépendent du script restent masquées au lieu de s'afficher inertes.
+  document.documentElement.classList.add('js');
+</script>
+
+<header>
+  <div class="header-inner">
+    <div class="header-left">
+      <div class="logo-mark">Réed<em>uc</em> OMF</div>
+      <div class="subtitle">Rééducation oro-maxillo-faciale</div>
+    </div>
+    <button class="mode-toggle interactive-only" id="mode-btn" aria-label="Passer à la version enfant">
+      <span class="toggle-icon">🧒</span>
+      <span>Changer de version</span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="no-js-note">
+    <p><strong>Version lecture seule.</strong> Les chronomètres, les compteurs de répétitions et le suivi de séance ont besoin des scripts, qui ne s'exécutent pas ici — c'est le cas de l'aperçu rapide d'un fichier sur iPhone. Tous les exercices et leurs consignes restent lisibles ci-dessous. Pour la version complète, ouvrez cette page depuis un lien Internet plutôt qu'en pièce jointe.</p>
+  </div>
+
+  <div class="intro-bar">
+    <p id="intro-text">Effectuez les exercices dans l'ordre. Cochez chaque exercice une fois terminé pour suivre votre progression.</p>
+  </div>
+
+  <div class="kid-fun interactive-only">
+    <span class="stars">⭐🌟✨</span>
+    <span>Bravo ! Fais chaque exercice et gagne des étoiles ! 🎉</span>
+  </div>
+
+  <div class="filter-row interactive-only">
+    <button class="filter-btn active" data-zone="tous" data-label="Séance du jour">Tous</button>
+    <button class="filter-btn" data-zone="mandibule" data-label="🦷 Mandibule">🦷 Mandibule</button>
+    <button class="filter-btn" data-zone="levre" data-label="👄 Lèvres">👄 Lèvres</button>
+    <button class="filter-btn" data-zone="joue" data-label="🐡 Joues">🐡 Joues</button>
+    <button class="filter-btn" data-zone="langue" data-label="🫦 Langue">🫦 Langue</button>
+    <button class="filter-btn" data-zone="atm" data-label="⚙️ ATM">⚙️ ATM</button>
+    <button class="filter-btn" data-zone="respiration" data-label="🌬️ Respiration">🌬️ Respiration</button>
+    <button class="filter-btn" data-zone="voile" data-label="🗣️ Voile & pharynx">🗣️ Voile &amp; pharynx</button>
+  </div>
+
+  <div class="session-header interactive-only">
+    <span class="session-label" id="session-label">Séance du jour</span>
+    <div class="session-right">
+      <span class="progress-text" id="progress-text"></span>
+      <button class="btn-reset-session" id="reset-session">↺ Réinitialiser</button>
+    </div>
+  </div>
+  <div class="progress-bar interactive-only">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+
+  <div id="exercise-list">
+
+    <article class="exercise-card" data-id="1" data-zone="mandibule" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#F0EAFB">🦷</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Ouverture buccale active assistée</h2>
+          <div class="ex-tags">
+            <span class="tag accent">mobilité</span>
+            <span class="tag">mandibule</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🐊<div class="kid-visual-caption">Ouvre la bouche comme un crocodile... tout doucement !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Ne force jamais ! Ouvre seulement jusqu'où c'est facile. Si ça tire ou si ça fait mal, arrête tout de suite.</div>
+        <ol class="steps-list adult-steps">
+          <li>Placez les pouces sur les incisives supérieures et les index sous les incisives inférieures.</li>
+          <li>Ouvrez doucement la bouche en écartant les doigts, jusqu'à la limite du confort.</li>
+          <li>Maintenez la position 5 secondes, puis refermez lentement.</li>
+          <li>Répétez le nombre de fois indiqué.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Mets tes deux pouces sur tes dents du haut et tes doigts sous tes dents du bas.</li>
+          <li>Ouvre doucement la bouche comme si tu bâillais — mais tout doucement !</li>
+          <li>Tiens 5 secondes, puis referme. Comme un crocodile au ralenti 🐊</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Ne forcez jamais l'ouverture. Travaillez dans l'amplitude sans douleur.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="2" data-zone="atm" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E8F5E9">⚙️</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Propulsion mandibulaire</h2>
+          <div class="ex-tags">
+            <span class="tag accent">ATM</span>
+            <span class="tag">proprioception</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🐶<div class="kid-visual-caption">Fais la tête du bulldog... et reviens !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Si ta mâchoire craque ou si ça fait mal, arrête tout de suite et dis-le à ton kiné.</div>
+        <ol class="steps-list adult-steps">
+          <li>Assis droit, relâchez la mâchoire en position de repos (dents légèrement écartées).</li>
+          <li>Avancez doucement la mandibule vers l'avant jusqu'à ce que les incisives inférieures dépassent les supérieures.</li>
+          <li>Maintenez 5 secondes puis revenez en position neutre.</li>
+          <li>Exécutez lentement, sans à-coups.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Assieds-toi bien droit et détends ta mâchoire.</li>
+          <li>Avance ta mâchoire du bas vers l'avant — fais la tête de bulldog 🐶</li>
+          <li>Tiens 5 secondes, puis reviens. Sans forcer !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Stop si claquement douloureux à l'ATM. Signalez-le à votre kiné.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="3" data-zone="atm" data-reps-goal="8" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E8F5E9">⚙️</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Latéralités mandibulaires</h2>
+          <div class="ex-tags">
+            <span class="tag accent">ATM</span>
+            <span class="tag">mobilité</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">↔️<div class="kid-visual-caption">Bouge ta mâchoire comme un essuie-glace !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Va aussi loin d'un côté que de l'autre. Si un côté bloque ou fait mal, dis-le à ton kiné.</div>
+        <ol class="steps-list adult-steps">
+          <li>Bouche entrouverte (~1 cm), position de repos.</li>
+          <li>Déplacez lentement la mâchoire vers la droite, maintenez 5 s.</li>
+          <li>Revenez au centre, puis déplacez vers la gauche, maintenez 5 s.</li>
+          <li>Chaque aller-retour compte pour une répétition.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Ouvre un tout petit peu la bouche.</li>
+          <li>Glisse ta mâchoire à droite comme un essuie-glace… tiens 5 s.</li>
+          <li>Reviens au milieu, puis glisse à gauche. Aller-retour = 1 répétition ! 🚗</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 8</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Gardez les mouvements symétriques. Observez si un côté est plus limité.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="4" data-zone="levre" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FDE8E8">😄</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Sourire forcé – étirement des commissures</h2>
+          <div class="ex-tags">
+            <span class="tag accent">lèvres</span>
+            <span class="tag">musculature</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">😁<div class="kid-visual-caption">Le plus grand sourire du monde !</div></div>
+        <ol class="steps-list adult-steps">
+          <li>Lèvres décontractées au départ.</li>
+          <li>Étirez progressivement les commissures vers les oreilles : grand sourire forcé.</li>
+          <li>Maintenez 5 secondes sans plisser les yeux.</li>
+          <li>Relâchez lentement.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Commence avec la bouche détendue.</li>
+          <li>Fais le plus grand sourire de ta vie — jusque dans les oreilles ! 😁</li>
+          <li>Tiens 5 secondes, puis relâche.</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="5" data-zone="levre" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FDE8E8">👄</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Pincement labial – résistance sur spatule</h2>
+          <div class="ex-tags">
+            <span class="tag accent">lèvres</span>
+            <span class="tag">tonus</span>
+            <span class="tag">renforcement</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🎋<div class="kid-visual-caption">Serre la paille avec tes lèvres — ne la laisse pas tomber !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Serre avec les lèvres, jamais avec les dents ! Ne mords pas la paille.</div>
+        <ol class="steps-list adult-steps">
+          <li>Placez un abaisse-langue (ou une paille rigide) entre les lèvres, pas entre les dents.</li>
+          <li>Serrez les lèvres autour de l'objet sans contracter les joues ni les mâchoires.</li>
+          <li>Maintenez la pression 5 secondes, puis relâchez.</li>
+          <li>Progressivement, essayez de résister si quelqu'un tire doucement sur l'objet.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Prends une paille et mets-la entre tes lèvres (pas les dents !).</li>
+          <li>Serre les lèvres très fort autour de la paille — comme si tu ne voulais pas qu'on te la prenne.</li>
+          <li>Tiens 5 secondes. Essaie que tes joues ne bougent pas ! 💪</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Variante : attacher un fil à la paille pour créer une légère résistance (avec aide d'un adulte).</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="6" data-zone="joue" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E0F0FF">🐡</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Gonflement des joues – alternances</h2>
+          <div class="ex-tags">
+            <span class="tag accent">joues</span>
+            <span class="tag">buccinateur</span>
+            <span class="tag">renforcement</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🐡<div class="kid-visual-caption">Gonfle les joues comme un poisson-globe !</div></div>
+        <ol class="steps-list adult-steps">
+          <li>Fermez la bouche et soufflez de l'air dans les deux joues en même temps.</li>
+          <li>Maintenez 3 s, puis déplacez l'air vers la joue droite uniquement (5 s), puis la gauche (5 s).</li>
+          <li>Revenez au centre et relâchez doucement par le nez.</li>
+          <li>Répétez la séquence complète.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Ferme la bouche et gonfle les deux joues comme un poisson-globe ! 🐡</li>
+          <li>Tiens 3 s, puis envoie l'air dans la joue droite seulement… puis la gauche.</li>
+          <li>Relâche l'air doucement par le nez. Tu es un champion de poisson !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="7" data-zone="langue" data-reps-goal="10" data-timer="10">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">🫦</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Pression de la langue au palais</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">déglutition</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">👅<div class="kid-visual-caption">Colle ta langue au plafond de ta bouche !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Appuie avec le bout de ta langue sur le palais, jamais contre tes dents.</div>
+        <ol class="steps-list adult-steps">
+          <li>Bouche fermée, dents légèrement jointes.</li>
+          <li>Appuyez la pointe de la langue fermement contre la rugosité du palais (juste derrière les incisives supérieures).</li>
+          <li>Maintenez la pression 10 secondes en respirant par le nez.</li>
+          <li>Relâchez. Évitez de pousser contre les dents.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Ferme la bouche doucement.</li>
+          <li>Colle le bout de ta langue fort contre le plafond de ta bouche (juste derrière tes dents du haut).</li>
+          <li>Tiens 10 secondes en respirant par le nez. Tu as une super langue ! 👅</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:10</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Corrige la déglutition atypique et renforce le tonus lingual.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="8" data-zone="respiration" data-reps-goal="6" data-timer="10" data-breathing>
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E0F4FF">🌬️</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Respiration nasale – cohérence 4-6</h2>
+          <div class="ex-tags">
+            <span class="tag accent">respiration nasale</span>
+            <span class="tag">relaxation</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🎈<div class="kid-visual-caption">Respire par le nez comme le ballon qui gonfle et se dégonfle !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> On respire seulement par le nez, jamais par la bouche. Si tu as la tête qui tourne, arrête et respire normalement.</div>
+        <ol class="steps-list adult-steps">
+          <li>Assis confortablement, lèvres jointes, dents légèrement écartées.</li>
+          <li>Inspirez lentement par le nez en 4 secondes (ventre se gonfle en premier).</li>
+          <li>Expirez lentement par le nez en 6 secondes.</li>
+          <li>Répétez : 6 cycles complets. Utilisez l'animation ci-dessous pour guider votre rythme.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Assieds-toi bien et ferme la bouche — on respire seulement par le nez !</li>
+          <li>Respire par le nez en comptant jusqu'à 4 dans ta tête. 🌬️</li>
+          <li>Souffle par le nez en comptant jusqu'à 6. Regarde le ballon qui gonfle et dégonfle !</li>
+        </ol>
+        <div class="breath-visual interactive-only">
+          <div class="breath-circle"></div>
+          <div class="breath-label">Appuyez sur Démarrer</div>
+        </div>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:10</div>
+            <div class="timer-label">Par cycle</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Cycles</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Un cycle de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Un cycle de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 6</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> La respiration nasale est essentielle pour l'équilibre OMF : filtre, humidifie et dévie le flux d'air. Évitez toute respiration buccale.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="9" data-zone="respiration" data-reps-goal="5" data-timer="8">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E0F4FF">👃</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Occlusion nasale alternée</h2>
+          <div class="ex-tags">
+            <span class="tag accent">respiration nasale</span>
+            <span class="tag">perméabilité</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">👃<div class="kid-visual-caption">Alterne : inspire d'un côté, expire de l'autre !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Si ton nez est trop bouché pour respirer, n'insiste pas et préviens un adulte.</div>
+        <ol class="steps-list adult-steps">
+          <li>Placez l'index sur la narine droite pour la boucher.</li>
+          <li>Inspirez lentement par la narine gauche en 4 secondes.</li>
+          <li>Bouchez maintenant la narine gauche, libérez la droite, et expirez en 4 secondes.</li>
+          <li>Alternez : 5 cycles complets de chaque côté.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Bouche fermée ! Bouche l'une de tes narines avec ton doigt.</li>
+          <li>Inspire par l'autre narine en comptant jusqu'à 4.</li>
+          <li>Change de narine et souffle en comptant jusqu'à 4. Tu es un super nez ! 👃</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:08</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 5</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Idéal pour évaluer et améliorer la perméabilité nasale. Signalez une obstruction persistante à votre médecin.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="10" data-zone="joue" data-reps-goal="8" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#DBEEFF">🫧</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Bulles dans l'eau – soufflage labial</h2>
+          <div class="ex-tags">
+            <span class="tag accent">joues</span>
+            <span class="tag">lèvres</span>
+            <span class="tag">souffle</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🫧<div class="kid-visual-caption">Souffle dans la paille et fais des bulles de poisson !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Souffle seulement — n'aspire jamais l'eau dans la paille ! Fais cet exercice avec un adulte à côté.</div>
+        <ol class="steps-list adult-steps">
+          <li>Remplissez un verre d'eau et munissez-vous d'une paille fine.</li>
+          <li>Lèvres bien serrées autour de la paille, soufflez doucement et régulièrement pour faire des bulles.</li>
+          <li>Maintenez un souffle continu pendant 5 secondes sans gonfler les joues de façon excessive.</li>
+          <li>Reprenez votre souffle par le nez, puis recommencez. Objectif : flux régulier, pas de grosses bulles saccadées.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Prends un verre d'eau et une paille 🥤</li>
+          <li>Serre bien les lèvres autour de la paille et souffle tout doucement.</li>
+          <li>Fais des petites bulles pendant 5 secondes ! Pas de grosses bulles — doucement, comme un poisson 🐠</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 8</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Variante : faire des bulles avec les lèvres seules dans l'eau (sans paille) pour un travail d'étanchéité labiale plus poussé.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="11" data-zone="joue" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E0F0FF">🎈</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Gonflement des joues – résistance aux doigts</h2>
+          <div class="ex-tags">
+            <span class="tag accent">joues</span>
+            <span class="tag">buccinateur</span>
+            <span class="tag">renforcement</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🎈<div class="kid-visual-caption">Gonfle tes joues et résiste avec tes mains !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Appuie doucement avec tes mains, sans écraser tes joues. Garde bien les lèvres fermées.</div>
+        <ol class="steps-list adult-steps">
+          <li>Gonflez les deux joues avec de l'air, bouche fermée hermétiquement.</li>
+          <li>Placez les paumes des mains à plat sur les deux joues.</li>
+          <li>Appuyez doucement vers l'intérieur avec les mains : résistez avec les joues pour ne pas laisser sortir l'air.</li>
+          <li>Maintenez la résistance 5 secondes, relâchez. Ne pas laisser l'air s'échapper par la bouche ou le nez.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Gonfle les deux joues à fond — comme un ballon ! 🎈</li>
+          <li>Mets tes deux mains sur tes joues et appuie doucement.</li>
+          <li>Résiste avec tes joues pour que l'air ne parte pas ! Tiens 5 secondes. Tu es plus fort que tes mains ? 💪</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Plus difficile que le simple gonflement : renforce activement le buccinateur. Assurez-vous que les lèvres restent jointives.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="12" data-zone="langue" data-reps-goal="15" data-timer="3">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">👅</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Claquement de langue – renforcement élévateur</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">élévateur</span>
+            <span class="tag">renforcement</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🪠<div class="kid-visual-caption">Colle ta langue et décolle-la : CLAC !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Fais autant de bruit que tu veux ! Mais si ta langue fatigue ou te tire, fais une pause.</div>
+        <ol class="steps-list adult-steps">
+          <li>Bouche entrouverte, langue au repos.</li>
+          <li>Collez toute la surface de la langue contre le palais.</li>
+          <li>Décollez-la d'un coup sec pour produire un « clac » sonore.</li>
+          <li>Répétez à rythme modéré. L'objectif est d'augmenter progressivement la force du claquement.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Ouvre un peu la bouche.</li>
+          <li>Colle ta langue au plafond de ta bouche comme une ventouse 🪠</li>
+          <li>Décolle-la d'un coup : CLAC ! Plus c'est fort, mieux c'est ! Combien de CLAC tu peux faire ?</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:03</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 15</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Renforce les muscles élévateurs de la langue (styloglosse, génioglosse). Essentiel pour la déglutition et la phonation.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="13" data-zone="langue" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">💪</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Langue contre abaisse-langue – résistance frontale</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">force</span>
+            <span class="tag">renforcement</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">💪<div class="kid-visual-caption">Pousse fort avec ta langue — tiens bon !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Reste sur le bout de ta langue : ne mets jamais la spatule au fond de ta bouche. Demande à un adulte de la tenir.</div>
+        <ol class="steps-list adult-steps">
+          <li>Tenez un abaisse-langue (ou une spatule, ou l'index propre) devant la bouche.</li>
+          <li>Sortez la langue et appuyez sa pointe contre l'extrémité de l'objet.</li>
+          <li>Résistez avec la main : poussez la spatule vers la langue pendant 5 secondes, la langue doit tenir sans reculer.</li>
+          <li>Répétez : puis travaillez latéralement (appui droit et gauche).</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Prends une spatule ou demande à un adulte de tenir son doigt devant ta bouche.</li>
+          <li>Sors la langue et pousse fort contre l'objet ! 💪</li>
+          <li>Tiens 5 secondes sans que ta langue recule. Tu es un champion de langue !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Exercice de renforcement isométrique. Peut se faire aussi vers le haut (palais) et latéralement (joues). Augmentez progressivement la résistance.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="14" data-zone="langue" data-reps-goal="10" data-timer="8">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">🔄</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Tour de bouche avec la langue – mobilité complète</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">mobilité</span>
+            <span class="tag">coordination</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🏎️<div class="kid-visual-caption">Ta langue fait le tour du circuit — vrooom !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Va lentement, ta langue doit bien toucher tes lèvres tout le tour. Si tu as une crampe, fais une pause.</div>
+        <ol class="steps-list adult-steps">
+          <li>Bouche fermée, lèvres jointives.</li>
+          <li>Faites glisser la pointe de la langue le long de la face interne des lèvres : tour complet dans le sens des aiguilles d'une montre.</li>
+          <li>Effectuez 5 tours dans un sens, puis 5 tours dans l'autre sens.</li>
+          <li>Gardez un rythme lent et régulier, en maintenant un contact ferme contre les lèvres.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Ferme la bouche.</li>
+          <li>Fais tourner ta langue à l'intérieur de ta bouche comme une voiture sur un circuit ! 🏎️</li>
+          <li>5 tours dans un sens… 5 tours dans l'autre. Vrooom !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:08</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Améliore la mobilité globale, la coordination linguale et le schéma corporel oro-facial.</div>
+      </div>
+    </article>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Exercices ajoutés le 9 août 2026 à partir des deux documents fournis.
+         `data-adulte` retire la fiche de la version enfant : un protocole SAOS
+         ou une consigne de bruxisme nocturne n'a pas de sens pour un enfant.
+         Contenu clinique relu et validé par Pauline, kinésithérapeute, le
+         26 août 2026 : exercices ajoutés, notes en langage enfant, et les trois
+         mises en garde ajoutées (perle percée sur fil, supervision pour la
+         pastille, réserve sur l'hypermobilité pour la décompression de l'ATM).
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <article class="exercise-card" data-id="15" data-zone="langue" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">🐙</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Ventouse linguale avec ouverture buccale</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">position de repos</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🐙<div class="kid-visual-caption">Colle toute ta langue au palais comme une ventouse !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Ouvre seulement tant que ta langue reste collée. Si elle se décolle, referme un peu — ce n'est pas grave.</div>
+        <ol class="steps-list adult-steps">
+          <li>Plaquez toute la surface de la langue contre le palais, pas seulement la pointe : la langue doit faire ventouse.</li>
+          <li>En gardant cette ventouse, ouvrez progressivement la bouche.</li>
+          <li>Maintenez 5 secondes sans décoller la langue, puis refermez lentement.</li>
+          <li>Surveillez la symétrie : la langue a souvent tendance à se décoller d'un côté.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Colle toute ta langue au plafond de ta bouche, comme une ventouse 🐙</li>
+          <li>Sans la décoller, ouvre la bouche tout doucement.</li>
+          <li>Tiens 5 secondes. Tu sens le fil sous ta langue qui tire ? C'est normal !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Travaille la position de repos linguale, socle de la rééducation OMF. Noter le côté qui décroche en premier : l'asymétrie oriente la suite du travail.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="16" data-zone="langue" data-reps-goal="10" data-timer="8">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">🧹</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Balayage du palais – exploration antéro-postérieure</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">proprioception</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🧹<div class="kid-visual-caption">Balaie le plafond de ta bouche avec ta langue !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Va doucement vers l'arrière. Si ça te donne envie de tousser, arrête-toi un peu plus tôt.</div>
+        <ol class="steps-list adult-steps">
+          <li>Bouche fermée au départ, pointe de la langue derrière les incisives supérieures.</li>
+          <li>Balayez le palais d'avant en arrière, jusqu'à sentir la jonction entre palais dur et palais mou.</li>
+          <li>Balayez ensuite de gauche à droite sur cette même jonction.</li>
+          <li>Reprenez la séquence bouche ouverte.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Ferme la bouche et mets ta langue derrière tes dents du haut.</li>
+          <li>Balaie le plafond de ta bouche d'avant en arrière, comme un balai 🧹</li>
+          <li>Puis de gauche à droite. Tu sens l'endroit où ça devient tout mou ? C'est là qu'il faut aller !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:08</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Travail proprioceptif préparatoire : repérer la jonction palais dur / palais mou conditionne le placement lingual des exercices suivants.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="17" data-zone="langue" data-reps-goal="5" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">🍬</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Pastille maintenue au palais</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">force</span>
+            <span class="tag">coordination</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🍬<div class="kid-visual-caption">Écrase le bonbon contre le plafond de ta bouche !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Toujours avec un adulte à côté. Si tu ris ou si tu bouges beaucoup, recrache la pastille : on ne joue pas avec quelque chose dans la bouche.</div>
+        <ol class="steps-list adult-steps">
+          <li>Placer une petite pastille au milieu de la langue, patient assis et attentif.</li>
+          <li>Plaquer la langue contre le palais en écrasant la pastille, sans que la langue touche ni dépasse les dents.</li>
+          <li>Maintenir 5 secondes, puis relâcher.</li>
+          <li>Variante : pastille sur la pointe de la langue, ou mouvement d'avant en arrière pour la faire fondre.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Un adulte te donne une pastille et reste avec toi.</li>
+          <li>Mets-la au milieu de ta langue et écrase-la contre le plafond de ta bouche 🍬</li>
+          <li>Tiens 5 secondes. Ta langue ne doit jamais toucher tes dents !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 5</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Le repère gustatif facilite le placement lingual. Surveillance d'un adulte requise chez l'enfant : tout corps étranger en bouche impose une supervision.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="18" data-zone="langue" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FFF3E0">💧</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Déglutition dirigée – contrôle du piston lingual</h2>
+          <div class="ex-tags">
+            <span class="tag accent">langue</span>
+            <span class="tag">déglutition</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">💧<div class="kid-visual-caption">Avale l'eau sans que ta langue parte en avant !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Une toute petite gorgée à la fois, assis bien droit. Si tu tousses, arrête et bois normalement.</div>
+        <ol class="steps-list adult-steps">
+          <li>Placer une petite quantité d'eau dans le creux de la langue.</li>
+          <li>Réaliser une ventouse avec le pourtour de la langue ; pencher la tête en avant puis sur les côtés pour vérifier l'étanchéité.</li>
+          <li>Avaler en piston, sans que la langue pousse vers l'avant contre les dents.</li>
+          <li>Variante à sec : entrouvrir légèrement la bouche et avaler la salive sans pousser la langue ni fermer les lèvres.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Mets une toute petite gorgée d'eau dans le creux de ta langue.</li>
+          <li>Ferme le tour de ta langue comme une ventouse et penche la tête : l'eau ne doit pas s'échapper 💧</li>
+          <li>Avale sans pousser ta langue vers l'avant. Tes dents ne bougent pas !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Cible directement la déglutition atypique avec propulsion linguale antérieure. Vérifier l'absence de fausse route avant de confier l'exercice en autonomie.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="19" data-zone="mandibule" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#F0EAFB">📿</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Perle au palais – contrôle sans compensation mandibulaire</h2>
+          <div class="ex-tags">
+            <span class="tag accent">mandibule</span>
+            <span class="tag">dissociation</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">📿<div class="kid-visual-caption">Fais monter la perle, puis retiens-la à la descente !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Uniquement avec une perle percée enfilée sur un fil, et un adulte à côté. Jamais de perle libre dans la bouche.</div>
+        <ol class="steps-list adult-steps">
+          <li>Utiliser une perle percée montée sur fil, l'extrémité du fil tenue à l'extérieur de la bouche.</li>
+          <li>Faire monter la perle vers le palais avec la langue seule.</li>
+          <li>Freiner la descente de manière contrôlée, toujours avec la langue.</li>
+          <li>La mâchoire inférieure ne doit pas participer ; tête et cou restent fixes. Travailler devant un miroir.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Un adulte prépare une perle sur un fil et reste avec toi.</li>
+          <li>Fais monter la perle jusqu'au plafond de ta bouche avec ta langue seulement 📿</li>
+          <li>Fais-la redescendre tout doucement en la retenant. Ta mâchoire ne bouge pas — regarde dans le miroir !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Classé en mandibule car l'objectif est la dissociation langue / mandibule, mais le travail musculaire est lingual. Risque d'inhalation : perle percée sur fil obligatoire, supervision systématique chez l'enfant.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="20" data-zone="levre" data-reps-goal="10" data-timer="10">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#FDE8E8">😘</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Lèvres en « bisou » – protraction labiale</h2>
+          <div class="ex-tags">
+            <span class="tag accent">lèvres</span>
+            <span class="tag">orbiculaire</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">😘<div class="kid-visual-caption">Fais un gros bisou et tiens-le sans bouger !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Ce sont tes lèvres qui travaillent, pas tes dents : ne serre pas la mâchoire.</div>
+        <ol class="steps-list adult-steps">
+          <li>Lèvres décontractées au départ, dents légèrement écartées.</li>
+          <li>Pincer les lèvres vers l'avant comme pour envoyer un baiser, sans serrer les mâchoires.</li>
+          <li>Maintenir 10 secondes, puis relâcher lentement.</li>
+          <li>Peut alterner avec le grand sourire pour travailler protraction et rétraction.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Détends ta bouche.</li>
+          <li>Fais un gros bisou en avançant les lèvres, comme pour embrasser quelqu'un de loin 😘</li>
+          <li>Tiens 10 secondes, puis relâche. Tu peux alterner avec le grand sourire !</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:10</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Renforce l'orbiculaire des lèvres, complément direct de l'étirement des commissures. Couple bien avec le travail d'étanchéité labiale.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="21" data-zone="joue" data-reps-goal="10" data-timer="5">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E0F0FF">🫳</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Joue en aspiration – rappel du buccinateur</h2>
+          <div class="ex-tags">
+            <span class="tag accent">joues</span>
+            <span class="tag">buccinateur</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🫳<div class="kid-visual-caption">Tire ta joue, puis ramène-la avec ton muscle !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Lave-toi bien les mains avant. Tire tout doucement, ça ne doit jamais faire mal.</div>
+        <ol class="steps-list adult-steps">
+          <li>Bouche fermée, placer un doigt propre contre la face interne de la joue.</li>
+          <li>Tirer doucement la joue vers l'extérieur avec le doigt.</li>
+          <li>Ramener la joue vers l'intérieur en contractant activement le buccinateur, contre la résistance du doigt.</li>
+          <li>Maintenir la contraction 5 secondes, relâcher. 10 répétitions de chaque côté.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Lave-toi les mains, puis mets un doigt à l'intérieur de ta joue.</li>
+          <li>Tire doucement ta joue vers l'extérieur.</li>
+          <li>Ramène ta joue avec ton muscle, comme si tu voulais repousser ton doigt ! Tiens 5 secondes, puis change de côté.</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Contraction concentrique contre résistance, plus sélective que le gonflement des joues. Compter 10 répétitions par côté.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="22" data-zone="voile" data-reps-goal="5" data-timer="8">
+      <div class="card-header">
+        <div class="zone-badge" style="background:#EDE7F6">🎵</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Voyelles enchaînées – a-e-i-o-u</h2>
+          <div class="ex-tags">
+            <span class="tag accent">voile du palais</span>
+            <span class="tag">pharynx</span>
+            <span class="tag kid-tag">⭐ Pour enfants</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kid-visual">🎵<div class="kid-visual-caption">Chante a-e-i-o-u sans reprendre ton souffle !</div></div>
+        <div class="note-box kid-note"><strong>⚠️ Attention :</strong> Si tu manques d'air ou si la tête te tourne, arrête et respire normalement.</div>
+        <ol class="steps-list adult-steps">
+          <li>Assis droit, épaules relâchées.</li>
+          <li>Prononcer les voyelles a-e-i-o-u en les enchaînant rapidement, sans reprendre sa respiration.</li>
+          <li>Articuler franchement : c'est l'amplitude articulatoire qui sollicite le voile et la paroi pharyngée.</li>
+          <li>Répéter en plusieurs séries réparties dans la journée.</li>
+        </ol>
+        <ol class="steps-list kid-steps">
+          <li>Assieds-toi bien droit et prends une grande inspiration.</li>
+          <li>Dis a-e-i-o-u très vite, sans respirer entre les lettres 🎵</li>
+          <li>Articule bien fort ! Recommence quand tu as repris ton souffle.</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:08</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Séries</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une série de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une série de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 5</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Issu du protocole oropharyngé de Guimarães et al. (2009), évalué chez l'adulte avec SAOS modéré. L'exercice reste sans danger à tout âge, mais son indication documentée est adulte.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="23" data-zone="voile" data-reps-goal="20" data-timer="4" data-adulte>
+      <div class="card-header">
+        <div class="zone-badge" style="background:#EDE7F6">🗣️</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Voyelle soutenue – élévation du voile du palais</h2>
+          <div class="ex-tags">
+            <span class="tag accent">voile du palais</span>
+            <span class="tag">protocole SAOS</span>
+            <span class="tag">adulte</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol class="steps-list adult-steps">
+          <li>Prononcer la voyelle « a » de façon intermittente, en poussant activement le voile du palais vers le haut — 20 répétitions.</li>
+          <li>Prononcer ensuite la même voyelle de façon continue, voile poussé vers le haut, en tenant 3 à 4 secondes — 20 répétitions.</li>
+          <li>Contrôler devant un miroir : le voile doit s'élever franchement, sans crispation de la langue.</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:04</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 20</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Cœur du protocole de Guimarães et al. (2009), essai randomisé chez l'adulte avec SAOS modéré. À prescrire sur indication, en complément et non en remplacement d'un traitement par PPC.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="24" data-zone="voile" data-reps-goal="10" data-timer="3" data-adulte>
+      <div class="card-header">
+        <div class="zone-badge" style="background:#EDE7F6">💪</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Déglutition engagée – paroi latérale du pharynx</h2>
+          <div class="ex-tags">
+            <span class="tag accent">pharynx</span>
+            <span class="tag">protocole SAOS</span>
+            <span class="tag">adulte</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol class="steps-list adult-steps">
+          <li>Plaquer la pointe de la langue contre le palais, derrière les incisives supérieures.</li>
+          <li>Réaliser une déglutition volontaire et appuyée, en cherchant une contraction pharyngée franche.</li>
+          <li>Relâcher complètement entre deux répétitions.</li>
+          <li>Espacer si la gorge devient sèche ou irritée.</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:03</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 10</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Cible la paroi latérale du pharynx, troisième volet du protocole de Guimarães. Déglutitions à sec répétées : espacer en cas de sécheresse pharyngée.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="25" data-zone="atm" data-reps-goal="5" data-timer="5" data-adulte>
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E8F5E9">🫱</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Ouverture guidée de l'ATM – décompression douce</h2>
+          <div class="ex-tags">
+            <span class="tag accent">ATM</span>
+            <span class="tag">douleur</span>
+            <span class="tag">adulte</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 2 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol class="steps-list adult-steps">
+          <li>Assis ou debout, dos droit, regard à l'horizontale, dents légèrement séparées, langue au palais.</li>
+          <li>Placer délicatement deux doigts sous le menton.</li>
+          <li>Ouvrir lentement la bouche en accompagnant le mouvement d'une traction très légère vers le bas, sans forcer.</li>
+          <li>Maintenir 5 secondes, refermer lentement. 5 répétitions, 2 à 3 fois par jour, toujours sans douleur.</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">00:05</div>
+            <div class="timer-label">Maintien</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Répétitions</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Une répétition de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Une répétition de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 5</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> Arrêt immédiat si la douleur augmente, si un blocage apparaît ou en cas de craquement douloureux. Prudence en cas d'hypermobilité ou de luxation discale : la traction auto-appliquée est à réserver aux patients dont le bilan l'autorise.</div>
+      </div>
+    </article>
+
+    <article class="exercise-card" data-id="26" data-zone="atm" data-reps-goal="2" data-timer="60" data-adulte>
+      <div class="card-header">
+        <div class="zone-badge" style="background:#E8F5E9">🌀</div>
+        <div class="card-meta">
+          <h2 class="ex-name">Auto-massage des masséters</h2>
+          <div class="ex-tags">
+            <span class="tag accent">ATM</span>
+            <span class="tag">bruxisme</span>
+            <span class="tag">adulte</span>
+          </div>
+        </div>
+        <div class="card-right">
+          <span class="duration-badge">⏱ 3 min</span>
+          <button class="done-check interactive-only" aria-label="Marquer cet exercice comme terminé"></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol class="steps-list adult-steps">
+          <li>Assis confortablement, dents légèrement séparées, langue posée au palais.</li>
+          <li>Placer deux doigts sur le masséter, au niveau de l'angle de la mâchoire.</li>
+          <li>Effectuer de petits mouvements circulaires lents, pression modérée mais confortable, en respirant profondément.</li>
+          <li>1 à 2 minutes par côté, 1 à 2 fois par jour — de préférence le soir en cas de bruxisme nocturne.</li>
+        </ol>
+        <div class="timer-zone interactive-only">
+          <div>
+            <div class="timer-display">01:00</div>
+            <div class="timer-label">Par côté</div>
+          </div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-reset" aria-label="Remettre le chronomètre à zéro">↺</button>
+            <button class="btn-timer btn-start">Démarrer</button>
+          </div>
+        </div>
+        <div class="reps-row interactive-only">
+          <span class="reps-label">Côtés</span>
+          <div class="reps-counter">
+            <button class="rep-btn rep-minus" aria-label="Un côté de moins">−</button>
+            <span class="rep-val">0</span>
+            <button class="rep-btn rep-plus" aria-label="Un côté de plus">+</button>
+          </div>
+          <span class="rep-goal">/ 2</span>
+        </div>
+        <div class="note-box adult-note"><strong>Note :</strong> La pression ne doit jamais provoquer de douleur vive. Éviter les mouvements rapides et ne pas contracter la mâchoire pendant le massage.</div>
+      </div>
+    </article>
+
+  </div>
+
+  <div class="congrats interactive-only" id="congrats-zone">
+    <div class="trophy">🏆</div>
+    <h2>Bravo, séance terminée !</h2>
+    <p>Tu as fait tous les exercices ! C'est super 🎉</p>
+  </div>
+
+  <div class="footer-note">
+    <strong>⚠️ Important</strong> — Ces exercices sont donnés à titre indicatif. Respectez scrupuleusement les instructions de votre kinésithérapeute. En cas de douleur, arrêtez immédiatement et consultez votre praticien.
+  </div>
+</main>
+
+<script>
+/* ───────────────────────────────────────────────────────────────────────────
+   Le HTML est la source de vérité : chaque exercice est une fiche du document,
+   avec ses paramètres en attributs. Ce script n'écrit aucun contenu, il ne fait
+   qu'attacher des comportements à ce qui est déjà là.
+
+   Conséquence : rien à reconstruire lors d'un changement de filtre ou de
+   version, donc aucun état à restaurer — les chronos en cours et les fiches
+   ouvertes le restent, par construction.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+const items = [...document.querySelectorAll('.exercise-card')].map(el => ({
+  el,
+  id: Number(el.dataset.id),
+  zone: el.dataset.zone,
+  repsGoal: Number(el.dataset.repsGoal),
+  timerSeconds: Number(el.dataset.timer),
+  isBreathing: el.hasAttribute('data-breathing'),
+  adulteSeul: el.hasAttribute('data-adulte'),
+
+  body: el.querySelector('.card-body'),
+  header: el.querySelector('.card-header'),
+  check: el.querySelector('.done-check'),
+  timerDisplay: el.querySelector('.timer-display'),
+  startBtn: el.querySelector('.btn-start'),
+  resetBtn: el.querySelector('.btn-reset'),
+  repVal: el.querySelector('.rep-val'),
+  breathVisual: el.querySelector('.breath-visual'),
+  breathCircle: el.querySelector('.breath-circle'),
+  breathLabel: el.querySelector('.breath-label'),
+
+  reps: 0,
+  done: false,
+  remaining: undefined,   // undefined = jamais lancé, 0 = terminé
+  endsAt: undefined,      // défini ⟺ chrono en cours
+  interval: null,
+  raf: null
+}));
+
+let currentFilter = 'tous';
+let isKidMode = false;
+let wakeLock = null;
+
+const progressText = document.getElementById('progress-text');
+const progressFill = document.getElementById('progress-fill');
+const sessionLabel = document.getElementById('session-label');
+const congratsZone = document.getElementById('congrats-zone');
+const modeBtn = document.getElementById('mode-btn');
+const introText = document.getElementById('intro-text');
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/* ── Persistance locale ──
+   Tout reste dans le navigateur de l'appareil : rien n'est envoyé nulle part,
+   donc aucune donnée de santé ne circule. La séance est repérée par sa date, ce
+   qui remet les compteurs à zéro chaque jour tout en gardant l'historique. */
+const STORE_KEY = 'omf-v1';
+const HISTORY_DAYS = 60;
+
+// Date locale et non toISOString(), qui bascule en UTC : passé 22 h en France,
+// la séance serait enregistrée sur le lendemain.
+function dayKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Figé au chargement : une app laissée ouverte la nuit ne doit pas déplacer la
+// séance en cours vers le jour suivant en pleine utilisation.
+const sessionDay = dayKey();
+
+function loadStore() {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+  } catch (e) {
+    return {};   // navigation privée, stockage bloqué ou contenu illisible
+  }
+}
+
+function persist() {
+  const store = loadStore();
+  store.prefs = { kidMode: isKidMode };
+  store.days = store.days || {};
+  const reps = {}, done = {};
+  items.forEach(it => { reps[it.id] = it.reps; done[it.id] = it.done; });
+  store.days[sessionDay] = { reps, done };
+
+  // Historique borné pour que le stockage ne grossisse pas indéfiniment.
+  const days = Object.keys(store.days).sort();
+  days.slice(0, Math.max(0, days.length - HISTORY_DAYS)).forEach(d => delete store.days[d]);
+
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  } catch (e) {
+    // Stockage indisponible : l'app reste utilisable, simplement sans mémoire.
+  }
+}
+
+function restore() {
+  const store = loadStore();
+  const day = store.days && store.days[sessionDay];
+  items.forEach(it => {
+    // Les valeurs relues sont bornées : le programme a pu changer depuis.
+    const reps = Number(day && day.reps ? day.reps[it.id] : 0) || 0;
+    it.reps = Math.max(0, Math.min(it.repsGoal + 5, reps));
+    it.done = !!(day && day.done && day.done[it.id]);
+    paintReps(it);
+    paintDone(it);
+  });
+  return !!(store.prefs && store.prefs.kidMode);
+}
+
+/* ── Affichage ── */
+function paintReps(it) {
+  it.repVal.textContent = it.reps;
+}
+
+function paintDone(it) {
+  it.check.classList.toggle('checked', it.done);
+  it.el.classList.toggle('done', it.done);
+}
+
+// Une fiche marquée `data-adulte` sort de la version enfant : un protocole SAOS ou
+// une consigne de bruxisme nocturne n'a rien à faire dans un programme d'enfant.
+function estVisible(it) {
+  if (isKidMode && it.adulteSeul) return false;
+  return currentFilter === 'tous' || it.zone === currentFilter;
+}
+
+function visibleItems() {
+  return items.filter(estVisible);
+}
+
+function refreshVisibility() {
+  items.forEach(it => {
+    const visible = estVisible(it);
+    it.el.classList.toggle('hidden', !visible);
+    // Un chrono qui sort de l'écran est mis en pause, pas remis à zéro.
+    if (!visible && it.endsAt !== undefined) pauseTimer(it);
+  });
+  updateProgress();
+}
+
+// La progression porte sur ce qui est affiché : si le programme prescrit ne
+// concerne qu'une zone, « 4 / 14 » alors que la séance est finie n'a aucun sens.
+function updateProgress() {
+  const shown = visibleItems();
+  const done = shown.filter(it => it.done).length;
+  progressText.textContent = `${done} / ${shown.length} exercices`;
+  progressFill.style.width = shown.length ? `${(done / shown.length) * 100}%` : '0%';
+  congratsZone.classList.toggle('show', shown.length > 0 && done === shown.length && isKidMode);
+}
+
+function applyFilter(zone, btn) {
+  currentFilter = zone;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  sessionLabel.textContent = btn.dataset.label;
+  refreshVisibility();
+}
+
+/* ── Version adulte / enfant ──
+   Le libellé du bouton ne mentionne pas d'âge : « Mode enfant » affiché en
+   permanence sur l'écran d'un patient de 13 ans est ce qui lui fait fermer
+   l'app. Seule l'icône indique la version vers laquelle on bascule. */
+function toggleKidMode() {
+  isKidMode = !isKidMode;
+  document.body.classList.toggle('kid', isKidMode);
+  modeBtn.querySelector('.toggle-icon').textContent = isKidMode ? '🧑' : '🧒';
+  modeBtn.setAttribute('aria-label', isKidMode ? 'Passer à la version adulte' : 'Passer à la version enfant');
+  introText.textContent = isKidMode
+    ? 'Fais chaque exercice avec ton kiné ou un adulte. Coche quand tu as fini !'
+    : 'Effectuez les exercices dans l\'ordre. Cochez chaque exercice une fois terminé pour suivre votre progression.';
+  items.forEach(it => { if (it.endsAt === undefined && it.remaining === 0) paintFinished(it); });
+  refreshVisibility();
+  persist();
+}
+
+/* ── Chrono ──
+   Le temps restant est déduit d'un horodatage de fin, jamais d'un compte de
+   ticks : le navigateur bride setInterval dès que la page passe en arrière-plan
+   ou que l'écran se verrouille, et un décompte tick par tick prendrait du
+   retard en silence. */
+function remainingSec(it) {
+  if (it.endsAt === undefined) return it.remaining ?? 0;
+  return Math.max(0, Math.ceil((it.endsAt - Date.now()) / 1000));
+}
+
+function setButton(it, label, bg) {
+  it.startBtn.textContent = label;
+  it.startBtn.style.background = bg;
+}
+
+// Après un maintien, le bouton annonce ce qui suit plutôt qu'un simple
+// « Terminé » : sans signal sonore, c'est lui qui indique où on en est.
+function paintFinished(it) {
+  if (it.reps >= it.repsGoal) setButton(it, isKidMode ? 'Bravo ! ✓' : 'Objectif ✓', 'var(--accent)');
+  else setButton(it, isKidMode ? 'Encore ! ▸' : 'Suivante ▸', 'var(--accent)');
+}
+
+function toggleTimer(it) {
+  if (it.endsAt !== undefined) pauseTimer(it);
+  else startTimer(it);
+}
+
+function startTimer(it) {
+  const from = (it.remaining === undefined || it.remaining <= 0) ? it.timerSeconds : it.remaining;
+  it.endsAt = Date.now() + from * 1000;
+  it.remaining = from;
+  setButton(it, 'Pause', 'var(--warn)');
+  if (it.isBreathing) startBreathAnim(it);
+  // 250 ms : l'affichage reste réactif, la précision vient de l'horodatage.
+  it.interval = setInterval(() => tick(it), 250);
+  acquireWakeLock();
+}
+
+function pauseTimer(it) {
+  it.remaining = remainingSec(it);
+  stopTicking(it);
+  if (it.isBreathing) stopBreathAnim(it);
+  setButton(it, 'Reprendre', '');
+}
+
+function tick(it) {
+  const left = remainingSec(it);
+  it.remaining = left;
+  it.timerDisplay.textContent = formatTime(left);
+  if (left <= 0) {
+    stopTicking(it);
+    if (it.isBreathing) stopBreathAnim(it);
+    // Un maintien mené à son terme vaut une répétition. Le patient a les doigts
+    // dans la bouche ou les mains sur les joues : il ne doit pas la compter.
+    changeRep(it, 1);
+    paintFinished(it);
+  }
+}
+
+function stopTicking(it) {
+  clearInterval(it.interval);
+  it.interval = null;
+  it.endsAt = undefined;
+  releaseWakeLockIfIdle();
+}
+
+function resetTimer(it) {
+  stopTicking(it);
+  stopBreathAnim(it);
+  it.remaining = it.timerSeconds;
+  it.timerDisplay.textContent = formatTime(it.timerSeconds);
+  setButton(it, 'Démarrer', '');
+}
+
+function changeRep(it, delta) {
+  it.reps = Math.max(0, Math.min(it.repsGoal + 5, it.reps + delta));
+  paintReps(it);
+  persist();
+}
+
+/* ── Écran maintenu allumé pendant un exercice ──
+   Sans ça l'écran s'éteint au milieu des 3 minutes de respiration. L'API
+   n'existe pas partout et peut être refusée : l'app doit rester utilisable. */
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator) || wakeLock) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch (e) {
+    wakeLock = null;
+  }
+}
+
+function releaseWakeLockIfIdle() {
+  if (wakeLock && !items.some(it => it.interval)) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+}
+
+/* ── Animation de respiration ──
+   La phase est calculée depuis l'instant de départ : après un passage en
+   arrière-plan, l'animation reprend à la phase réelle au lieu de rattraper le
+   temps perdu. */
+function startBreathAnim(it) {
+  if (!it.breathVisual) return;
+  it.breathVisual.classList.add('show');
+  const inhaleSec = 4, exhaleSec = 6;
+  const startedAt = performance.now();
+
+  function frame(ts) {
+    const phase = ((ts - startedAt) / 1000) % (inhaleSec + exhaleSec);
+    let scale, label;
+    if (phase < inhaleSec) {
+      scale = 1 + (phase / inhaleSec) * 0.7;
+      label = isKidMode ? `🌬️ Inspire... ${Math.ceil(inhaleSec - phase)}` : `Inspirez... ${Math.ceil(inhaleSec - phase)} s`;
+    } else {
+      scale = 1.7 - ((phase - inhaleSec) / exhaleSec) * 0.7;
+      label = isKidMode ? `😮‍💨 Souffle... ${Math.ceil(inhaleSec + exhaleSec - phase)}` : `Expirez... ${Math.ceil(inhaleSec + exhaleSec - phase)} s`;
+    }
+    it.breathCircle.style.transform = `scale(${scale})`;
+    it.breathLabel.textContent = label;
+    if (it.endsAt !== undefined) it.raf = requestAnimationFrame(frame);
+  }
+
+  it.raf = requestAnimationFrame(frame);
+}
+
+function stopBreathAnim(it) {
+  if (!it.breathVisual) return;
+  if (it.raf) cancelAnimationFrame(it.raf);
+  it.raf = null;
+  it.breathLabel.textContent = isKidMode ? 'Appuie sur Démarrer' : 'Appuyez sur Démarrer';
+  it.breathCircle.style.transform = 'scale(1)';
+}
+
+function resetSession() {
+  if (!confirm('Réinitialiser la séance du jour ? Les coches et les répétitions seront effacées.')) return;
+  items.forEach(it => {
+    it.reps = 0;
+    it.done = false;
+    resetTimer(it);
+    paintReps(it);
+    paintDone(it);
+  });
+  persist();
+  updateProgress();
+}
+
+/* ── Branchement des commandes ── */
+items.forEach(it => {
+  it.header.addEventListener('click', () => it.body.classList.toggle('open'));
+
+  it.check.addEventListener('click', e => {
+    e.stopPropagation();   // sans ça, cocher replierait aussi la fiche
+    it.done = !it.done;
+    paintDone(it);
+    updateProgress();
+    persist();
+  });
+
+  it.startBtn.addEventListener('click', () => toggleTimer(it));
+  it.resetBtn.addEventListener('click', () => resetTimer(it));
+  it.el.querySelector('.rep-minus').addEventListener('click', () => changeRep(it, -1));
+  it.el.querySelector('.rep-plus').addEventListener('click', () => changeRep(it, 1));
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyFilter(btn.dataset.zone, btn));
+});
+
+modeBtn.addEventListener('click', toggleKidMode);
+document.getElementById('reset-session').addEventListener('click', resetSession);
+
+// Retour au premier plan : on resynchronise l'affichage sans attendre le
+// prochain tick, et on redemande le verrou d'écran relâché par le navigateur.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  items.forEach(it => { if (it.endsAt !== undefined) tick(it); });
+  if (items.some(it => it.interval)) acquireWakeLock();
+});
+
+// Init — on relit la séance du jour. Les chronos et les fiches ouvertes ne sont
+// volontairement pas mémorisés : ce sont des états de manipulation.
+if (restore()) toggleKidMode();
+refreshVisibility();
+</script>
+</body>
+</html>
