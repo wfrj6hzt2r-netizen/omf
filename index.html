@@ -2133,6 +2133,25 @@ let currentFilter = 'tous';
 let isKidMode = false;
 let wakeLock = null;
 
+/* ── Programme reçu par lien ──
+   Le praticien compose un programme dans prescription.html et envoie l'adresse
+   obtenue. Le lien ne porte que des numéros d'exercice — jamais de nom ni la
+   moindre information concernant le patient, qui circuleraient alors en clair
+   dans un SMS, dans un mail et dans l'historique du navigateur. */
+const params = new URLSearchParams(location.search);
+
+const demandes = (params.get('ex') || '')
+  .split(/[^0-9]+/)
+  .map(Number)
+  .filter(n => Number.isInteger(n) && n > 0);
+
+// Un lien tronqué ou mal recopié ne doit jamais aboutir à une page vide : si
+// aucun numéro ne correspond à un exercice réel, le paramètre est ignoré et le
+// patient voit l'ensemble des exercices.
+const numerosConnus = new Set(items.map(it => it.id));
+const retenus = demandes.filter(n => numerosConnus.has(n));
+const programme = retenus.length ? new Set(retenus) : null;
+
 const progressText = document.getElementById('progress-text');
 const progressFill = document.getElementById('progress-fill');
 const sessionLabel = document.getElementById('session-label');
@@ -2216,6 +2235,7 @@ function paintDone(it) {
 // Une fiche marquée `data-adulte` sort de la version enfant : un protocole SAOS ou
 // une consigne de bruxisme nocturne n'a rien à faire dans un programme d'enfant.
 function estVisible(it) {
+  if (programme && !programme.has(it.id)) return false;
   if (isKidMode && it.adulteSeul) return false;
   return currentFilter === 'tous' || it.zone === currentFilter;
 }
@@ -2252,6 +2272,20 @@ function applyFilter(zone, btn) {
   refreshVisibility();
 }
 
+// Le texte d'accueil dit au patient d'où vient la liste qu'il a sous les yeux :
+// une sélection faite pour lui, ou l'ensemble des exercices.
+function majIntro() {
+  if (programme) {
+    introText.textContent = isKidMode
+      ? 'Voici les exercices choisis pour toi. Coche chacun quand tu l\'as fini !'
+      : 'Voici les exercices retenus pour vous par votre kinésithérapeute. Cochez chacun une fois terminé.';
+  } else {
+    introText.textContent = isKidMode
+      ? 'Fais chaque exercice avec ton kiné ou un adulte. Coche quand tu as fini !'
+      : 'Effectuez les exercices dans l\'ordre. Cochez chaque exercice une fois terminé pour suivre votre progression.';
+  }
+}
+
 /* ── Version adulte / enfant ──
    Le libellé du bouton ne mentionne pas d'âge : « Mode enfant » affiché en
    permanence sur l'écran d'un patient de 13 ans est ce qui lui fait fermer
@@ -2261,9 +2295,7 @@ function toggleKidMode() {
   document.body.classList.toggle('kid', isKidMode);
   modeBtn.querySelector('.toggle-icon').textContent = isKidMode ? '🧑' : '🧒';
   modeBtn.setAttribute('aria-label', isKidMode ? 'Passer à la version adulte' : 'Passer à la version enfant');
-  introText.textContent = isKidMode
-    ? 'Fais chaque exercice avec ton kiné ou un adulte. Coche quand tu as fini !'
-    : 'Effectuez les exercices dans l\'ordre. Cochez chaque exercice une fois terminé pour suivre votre progression.';
+  majIntro();
   items.forEach(it => { if (it.endsAt === undefined && it.remaining === 0) paintFinished(it); });
   refreshVisibility();
   persist();
@@ -2453,7 +2485,23 @@ document.addEventListener('visibilitychange', () => {
 
 // Init — on relit la séance du jour. Les chronos et les fiches ouvertes ne sont
 // volontairement pas mémorisés : ce sont des états de manipulation.
-if (restore()) toggleKidMode();
+// Un programme reçu par lien rend les filtres par zone sans objet : on les
+// retire plutôt que de laisser des boutons qui ne filtrent presque rien.
+if (programme) {
+  document.querySelector('.filter-row')?.remove();
+  sessionLabel.textContent = 'Votre programme';
+}
+
+// La version demandée dans le lien l'emporte au chargement ; ensuite, le bouton
+// de bascule reprend la main et la préférence du patient est conservée.
+const preferenceEnregistree = restore();
+const versionDuLien = params.get('v');
+const demarrerEnEnfant = versionDuLien === 'enfant' ? true
+                       : versionDuLien === 'adulte' ? false
+                       : preferenceEnregistree;
+
+if (demarrerEnEnfant) toggleKidMode();
+majIntro();
 refreshVisibility();
 </script>
 </body>

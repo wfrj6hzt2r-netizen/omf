@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Composer un programme — Rééducation OMF</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<style>
+  /* Outil réservé au praticien : il compose un programme et produit le lien à
+     envoyer au patient. Aucune page de l'application n'y renvoie, pour qu'un
+     patient ne tombe pas dessus par hasard.
+
+     La liste des exercices n'est pas recopiée ici : elle est lue dans
+     index.html au chargement. Une seule source de vérité, donc aucun risque de
+     voir les deux pages diverger à la prochaine modification. */
+  :root {
+    --font-display: Georgia, 'Times New Roman', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --ivory: #F7F4EE;
+    --clay: #C8A882;
+    --deep: #2B2420;
+    --muted: #8A7A6E;
+    --soft: #EDE9E0;
+    --accent: #6B8F71;
+    --accent-light: #EBF2EC;
+    --warn: #C4724A;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--ivory);
+    color: var(--deep);
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #DDD8CE;
+    background: var(--ivory);
+  }
+
+  .header-inner { max-width: 720px; margin: 0 auto; }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: normal;
+    letter-spacing: -0.5px;
+  }
+
+  h1 em { font-style: italic; color: var(--clay); }
+
+  .sous-titre { font-size: 12.5px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+
+  main { max-width: 720px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  h2 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  section { margin-bottom: 28px; }
+
+  /* ── Choix de la version ── */
+  .versions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .version-btn {
+    flex: 1; min-width: 150px;
+    border: 1.5px solid #DDD8CE;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 13px;
+    text-align: left;
+    padding: 12px 14px;
+    min-height: 44px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .version-btn strong { display: block; color: var(--deep); font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .version-btn.active { border-color: var(--deep); background: white; }
+  .version-btn.active strong { color: var(--deep); }
+
+  /* ── Exercices ── */
+  .zone { margin-bottom: 18px; }
+
+  .zone-titre {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 8px;
+  }
+
+  .zone-nom { font-size: 13px; font-weight: 600; }
+
+  .zone-action {
+    border: none; background: transparent; color: var(--muted);
+    font-family: var(--font-body); font-size: 11.5px;
+    cursor: pointer; text-decoration: underline;
+    padding: 8px 4px; min-height: 34px;
+  }
+
+  .zone-action:hover { color: var(--deep); }
+
+  .exo {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: white;
+    border: 1px solid #E8E3D9;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .exo:hover { border-color: var(--clay); }
+  .exo.choisi { border-color: var(--accent); background: var(--accent-light); }
+
+  .exo input {
+    width: 22px; height: 22px; margin-top: 1px;
+    flex-shrink: 0; accent-color: var(--accent); cursor: pointer;
+  }
+
+  .exo-corps { flex: 1; min-width: 0; }
+  .exo-nom { font-size: 14px; line-height: 1.35; }
+  .exo-info { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+
+  .badge-adulte {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    background: var(--soft); color: var(--muted);
+    padding: 2px 6px; border-radius: 4px; margin-left: 6px;
+  }
+
+  /* ── Résultat ── */
+  .resultat {
+    position: sticky; bottom: 0;
+    background: white;
+    border: 1.5px solid var(--clay);
+    border-radius: 16px;
+    padding: 16px 18px;
+    box-shadow: 0 -2px 24px rgba(43, 36, 32, 0.1);
+  }
+
+  .compte { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .compte span { font-variant-numeric: tabular-nums; }
+
+  .lien-zone { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .lien {
+    flex: 1; min-width: 220px;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    color: var(--deep);
+    background: var(--soft);
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 44px;
+  }
+
+  .btn {
+    border: none; cursor: pointer;
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-weight: 500; font-size: 13px;
+    padding: 12px 18px; min-height: 44px;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+
+  .btn-copier { background: var(--deep); color: var(--ivory); }
+  .btn-copier:hover { background: var(--warn); }
+  .btn-tester {
+    background: transparent; color: var(--muted);
+    border: 1.5px solid #DDD8CE; text-decoration: none;
+    display: inline-flex; align-items: center;
+  }
+  .btn-tester:hover { border-color: var(--muted); color: var(--deep); }
+
+  .avertissement {
+    margin-top: 10px; padding: 10px 12px;
+    background: #FEF9F0; border-left: 3px solid var(--warn);
+    border-radius: 0 8px 8px 0;
+    font-size: 12px; color: var(--muted); line-height: 1.5;
+  }
+
+  .avertissement strong { color: var(--warn); }
+
+  .note-bas {
+    margin-top: 28px; padding: 16px 18px;
+    background: var(--soft); border-radius: 12px;
+    font-size: 12px; color: var(--muted); line-height: 1.65;
+  }
+
+  .note-bas strong { color: var(--deep); }
+
+  .erreur {
+    padding: 18px 20px;
+    background: #FEF3E8; border: 1.5px solid var(--warn);
+    border-radius: 12px; font-size: 13.5px; line-height: 1.6;
+  }
+
+  .erreur strong { color: var(--warn); }
+
+  :focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>Composer un pr<em>og</em>ramme</h1>
+    <p class="sous-titre">Cochez les exercices à prescrire, puis envoyez le lien obtenu au patient.
+      Cette page vous est réservée : aucune page de l'application n'y renvoie.</p>
+  </div>
+</header>
+
+<main id="contenu">
+  <p class="sous-titre">Chargement de la liste des exercices…</p>
+</main>
+
+<script>
+/* La liste vient d'index.html, jamais d'une copie : c'est ce qui garantit que
+   les deux pages resteront d'accord après toute modification des exercices. */
+
+const contenu = document.getElementById('contenu');
+let exercices = [], zones = [], version = 'adulte';
+
+function echapper(t) {
+  return t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+async function charger() {
+  let doc;
+  try {
+    const rep = await fetch('index.html', { cache: 'no-store' });
+    if (!rep.ok) throw new Error('réponse ' + rep.status);
+    doc = new DOMParser().parseFromString(await rep.text(), 'text/html');
+  } catch (e) {
+    // Cas courant : la page a été ouverte depuis un fichier local, et le
+    // navigateur refuse alors de lire index.html à côté.
+    contenu.innerHTML = `
+      <div class="erreur">
+        <strong>Impossible de lire la liste des exercices.</strong><br><br>
+        Cette page doit être ouverte depuis l'adresse en ligne, pas depuis un fichier
+        enregistré sur l'ordinateur : le navigateur interdit à un fichier local d'en
+        lire un autre.<br><br>
+        Ouvrez plutôt <code>…github.io/omf/prescription.html</code>.
+      </div>`;
+    return;
+  }
+
+  zones = [...doc.querySelectorAll('.filter-btn')]
+    .filter(b => b.dataset.zone && b.dataset.zone !== 'tous')
+    .map(b => ({ id: b.dataset.zone, label: b.dataset.label }));
+
+  exercices = [...doc.querySelectorAll('.exercise-card')].map(c => ({
+    id: Number(c.dataset.id),
+    nom: c.querySelector('.ex-name').textContent.trim(),
+    zone: c.dataset.zone,
+    duree: (c.querySelector('.duration-badge')?.textContent || '').replace('⏱', '').trim(),
+    objectif: c.dataset.repsGoal,
+    adulteSeul: c.hasAttribute('data-adulte')
+  }));
+
+  if (!exercices.length) {
+    contenu.innerHTML = '<div class="erreur"><strong>Aucun exercice trouvé dans l\'application.</strong></div>';
+    return;
+  }
+
+  afficher();
+}
+
+function afficher() {
+  const blocs = zones.map(z => {
+    const liste = exercices.filter(e => e.zone === z.id);
+    if (!liste.length) return '';
+    return `
+      <div class="zone">
+        <div class="zone-titre">
+          <span class="zone-nom">${echapper(z.label)}</span>
+          <button class="zone-action" data-zone="${z.id}">tout cocher</button>
+        </div>
+        ${liste.map(e => `
+          <label class="exo" data-id="${e.id}">
+            <input type="checkbox" value="${e.id}" data-adulte="${e.adulteSeul}">
+            <span class="exo-corps">
+              <span class="exo-nom">${echapper(e.nom)}</span>
+              <span class="exo-info">${echapper(e.duree)} · objectif ${e.objectif}${
+                e.adulteSeul ? '<span class="badge-adulte">adulte</span>' : ''}</span>
+            </span>
+          </label>`).join('')}
+      </div>`;
+  }).join('');
+
+  contenu.innerHTML = `
+    <section>
+      <h2>Version envoyée au patient</h2>
+      <div class="versions">
+        <button class="version-btn active" data-version="adulte">
+          <strong>Adulte</strong>Consignes cliniques et notes du praticien
+        </button>
+        <button class="version-btn" data-version="enfant">
+          <strong>Enfant</strong>Langage simple, illustrations, étoiles
+        </button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Exercices à prescrire</h2>
+      ${blocs}
+      <button class="zone-action" id="tout-decocher">tout décocher</button>
+    </section>
+
+    <div class="resultat">
+      <p class="compte" id="compte"></p>
+      <div class="lien-zone">
+        <input class="lien" id="lien" readonly>
+        <button class="btn btn-copier" id="copier">Copier le lien</button>
+        <a class="btn btn-tester" id="tester" target="_blank" rel="noopener">Tester</a>
+      </div>
+      <div id="avertissements"></div>
+    </div>
+
+    <div class="note-bas">
+      <strong>Le lien ne contient aucune donnée du patient</strong> — seulement des numéros
+      d'exercice. Il peut donc circuler par SMS ou par mail sans précaution particulière.
+      En contrepartie, il n'identifie personne : notez dans votre dossier quel programme
+      a été envoyé à qui.<br><br>
+      Le patient peut changer de version lui-même une fois la page ouverte ; la version
+      du lien n'est que celle affichée à l'ouverture. Sa progression reste enregistrée
+      sur son téléphone.
+    </div>`;
+
+  contenu.addEventListener('change', e => { if (e.target.type === 'checkbox') majTout(); });
+
+  contenu.addEventListener('click', e => {
+    const bv = e.target.closest('.version-btn');
+    if (bv) {
+      version = bv.dataset.version;
+      contenu.querySelectorAll('.version-btn').forEach(b => b.classList.toggle('active', b === bv));
+      majTout();
+      return;
+    }
+    const bz = e.target.closest('.zone-action[data-zone]');
+    if (bz) {
+      const cases = [...contenu.querySelectorAll(`.zone [data-zone="${bz.dataset.zone}"]`)];
+      const dansZone = [...contenu.querySelectorAll('.zone')].find(z => z.contains(bz));
+      const boites = [...dansZone.querySelectorAll('input[type=checkbox]')];
+      const toutCoche = boites.every(b => b.checked);
+      boites.forEach(b => { b.checked = !toutCoche; });
+      bz.textContent = toutCoche ? 'tout cocher' : 'tout décocher';
+      majTout();
+      return;
+    }
+    if (e.target.id === 'tout-decocher') {
+      contenu.querySelectorAll('input[type=checkbox]').forEach(b => { b.checked = false; });
+      contenu.querySelectorAll('.zone-action[data-zone]').forEach(b => { b.textContent = 'tout cocher'; });
+      majTout();
+      return;
+    }
+    if (e.target.id === 'copier') copier();
+  });
+
+  majTout();
+}
+
+function choisis() {
+  return [...contenu.querySelectorAll('input[type=checkbox]:checked')];
+}
+
+function construireLien() {
+  const ids = choisis().map(c => c.value);
+  const u = new URL('./', location.href);
+  if (ids.length) u.searchParams.set('ex', ids.join('.'));
+  if (version === 'enfant') u.searchParams.set('v', 'enfant');
+  return u.toString();
+}
+
+function majTout() {
+  const coches = choisis();
+  const n = coches.length;
+
+  contenu.querySelectorAll('.exo').forEach(l => {
+    l.classList.toggle('choisi', l.querySelector('input').checked);
+  });
+
+  document.getElementById('compte').innerHTML = n
+    ? `<span>${n}</span> exercice${n > 1 ? 's' : ''} dans le programme`
+    : 'Aucun exercice coché';
+
+  const lien = construireLien();
+  document.getElementById('lien').value = lien;
+  document.getElementById('tester').href = lien;
+
+  // Deux situations méritent un mot : un lien qui montrerait tout, et une
+  // sélection dont une partie disparaîtra dans la version enfant.
+  const avertissements = [];
+  if (!n) {
+    avertissements.push(`<strong>Rien n'est coché :</strong> ce lien affichera les
+      ${exercices.length} exercices, comme l'adresse ordinaire de l'application.`);
+  }
+  const adultesCoches = coches.filter(c => c.dataset.adulte === 'true').length;
+  if (version === 'enfant' && adultesCoches) {
+    avertissements.push(`<strong>${adultesCoches} exercice${adultesCoches > 1 ? 's' : ''}
+      réservé${adultesCoches > 1 ? 's' : ''} à l'adulte</strong> ${adultesCoches > 1 ? 'sont' : 'est'}
+      coché${adultesCoches > 1 ? 's' : ''} alors que la version enfant est sélectionnée :
+      ${adultesCoches > 1 ? 'ils n\'apparaîtront pas' : 'il n\'apparaîtra pas'} chez le patient.`);
+  }
+
+  document.getElementById('avertissements').innerHTML =
+    avertissements.map(a => `<div class="avertissement">${a}</div>`).join('');
+}
+
+async function copier() {
+  const champ = document.getElementById('lien');
+  const bouton = document.getElementById('copier');
+  try {
+    await navigator.clipboard.writeText(champ.value);
+  } catch (e) {
+    // Copie refusée (page non sécurisée, permission) : on sélectionne le texte
+    // pour que la copie manuelle reste possible.
+    champ.focus(); champ.select();
+    try { document.execCommand('copy'); } catch (e2) {
+      bouton.textContent = 'Copiez avec ⌘C';
+      setTimeout(() => { bouton.textContent = 'Copier le lien'; }, 2500);
+      return;
+    }
+  }
+  bouton.textContent = 'Copié ✓';
+  setTimeout(() => { bouton.textContent = 'Copier le lien'; }, 1800);
+}
+
+charger();
+</script>
+</body>
+</html>
